@@ -6,23 +6,24 @@ It provides an interactive learning experience using multiple AI agents such as 
 ---
 
 ## 📌 Project Structure
+
+```bash
 Tutorverse/
-│── backend/ # FastAPI + AI Agents (CrewAI/OpenAI)
+├── backend/ # FastAPI + AI Agents (CrewAI/OpenAI)
 │ ├── main.py
 │ ├── agents.py
 │ ├── tasks.py
 │ └── requirements.txt
 │
-│── frontend/ # React + Vite + CSS
+├── frontend/ # React + Vite + Tailwind
 │ ├── src/
 │ ├── package.json
 │ └── vite.config.js
 │
-│── README.md
-│── .gitignore
+├── README.md
+└── .gitignore
 
-
-
+---
 ## 🚀 Getting Started
 
 ### 🔹 Backend (FastAPI + CrewAI Agents)
@@ -38,14 +39,16 @@ pip install -r requirements.txt
 
 # Run server
 uvicorn main:app --reload
-Server runs at: http://127.0.0.1:8000
 
-🔹 Frontend (React + Vite + Tailwind)
+Server runs at: http://127.0.0.1:8000
+---
+##🔹 Frontend (React + Vite + Tailwind)
+```bash
 cd frontend
 npm install
 npm run dev
-Frontend runs at: http://localhost:5173
 
+Frontend runs at: http://localhost:5173
 🧠 Features
 📘 Tutor Agent – explains concepts in detail.
 
