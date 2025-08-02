@@ -52,7 +52,7 @@ uvicorn main:app --reload
 # Server will be running at http://127.0.0.1:8000
 ```
 
-### 🔹 Frontend (React + Vite + Tailwind)
+### 🔹 Frontend (React + Vite + CSS)
 
 ```bash
 # Navigate to the frontend directory
