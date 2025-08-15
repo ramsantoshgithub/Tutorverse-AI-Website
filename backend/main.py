@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from crewai import Crew,LLM
 from agents import TutorAppAgents
 from tasks import TutorAppTasks
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
 
 load_dotenv()
 
@@ -12,10 +13,10 @@ app=FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class UserRequest(BaseModel):
@@ -29,40 +30,69 @@ llm = LLM(
 agents = TutorAppAgents()
 tasks=TutorAppTasks()
 
+
+# Tries 3times ,waits exponentially between retries, starting at 2 seconds.
+@retry(
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    stop=stop_after_attempt(3)
+)
+def run_crew_with_retries(crew, inputs):
+    """
+    Runs the crew.kickoff method with retry logic.
+    """
+    print("Attempting to run the crew...")
+    result = crew.kickoff(inputs=inputs)
+    print("Crew run successful.")
+    return result
+
 @app.get("/")
 def Checkyy():
     return {"status":"Tutorverse is running"}
+
 @app.post("/generate")
 def generate(request:UserRequest):
     """End point to trigger the CrewAI process"""
-    #Create Instances of agents
-    describer = agents.Describer()
-    resourcer=agents.Resource_Provider()
-    quizzer=agents.Quiz_Generator()
-    #Create instances of tasks
-    tutor_task = tasks.describe(describer)
-    provide_resource=tasks.resource(resourcer,tutor_task)
-    generate_quiz=tasks.quiz_task(quizzer,tutor_task)
-    crew = Crew(
-        agents=[describer,resourcer,quizzer],
-        tasks=[tutor_task,provide_resource,generate_quiz],
-        verbose=True,
-        manager_llm=llm
-    )
-    inputs={
-        "user_prompt": request.user_prompt,
-        "n":request.n
-    }
-    result = crew.kickoff(inputs=inputs)
-    explanation=tutor_task.output.raw if tutor_task.output else "No Explanation generated"
-    resources=provide_resource.output.raw if provide_resource.output else "No Resources were found"
-    quiz=generate_quiz.output.raw if generate_quiz.output else "Error Generating Quiz"
+    try:
+        # Create Instances of agents
+        describer = agents.Describer()
+        resourcer=agents.Resource_Provider()
+        quizzer=agents.Quiz_Generator()
+        # Create instances of tasks
+        tutor_task = tasks.describe(describer)
+        provide_resource=tasks.resource(resourcer,tutor_task)
+        generate_quiz=tasks.quiz_task(quizzer,tutor_task)
+        crew = Crew(
+            agents=[describer,resourcer,quizzer],
+            tasks=[tutor_task,provide_resource,generate_quiz],
+            verbose=True,
+            manager_llm=llm
+        )
+        inputs={
+            "user_prompt": request.user_prompt,
+            "n":request.n
+        }
+        
+        # MODIFIED: Call our new function instead of crew.kickoff directly
+        result = run_crew_with_retries(crew, inputs)
+        
+        explanation=tutor_task.output.raw if tutor_task.output else "No Explanation generated"
+        resources=provide_resource.output.raw if provide_resource.output else "No Resources were found"
+        quiz=generate_quiz.output.raw if generate_quiz.output else "Error Generating Quiz"
 
-    return{
-        "explanation":explanation,
-        "resources":resources,
-        "quiz":quiz
-    }
+        return{
+            "explanation":explanation,
+            "resources":resources,
+            "quiz":quiz
+        }
+    except RetryError:
+        #if all 3 retries fail.
+        print("Crew failed after multiple retries.")
+        raise HTTPException(status_code=503, detail="The AI service is currently overloaded. Please try again in a moment.")
+    except Exception as e:
+        # for any unexpected errors.
+        print(f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app,host="0.0.0.0",port=8000)
